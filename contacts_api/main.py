@@ -3,7 +3,8 @@ from sqlalchemy.orm import Session
 from database import SessionLocal, engine
 from models import Base, Contact
 from schemas import ContactCreate, ContactResponse
-from typing import List
+from typing import List, Optional
+from datetime import date, timedelta
 
 Base.metadata.create_all(bind=engine)
 
@@ -54,3 +55,25 @@ def delete_contact(contact_id: int, db: Session = Depends(get_db)):
     db.delete(db_contact)
     db.commit()
     return {"message": "Contact deleted successfully"}
+
+@app.get("/contacts/search/", response_model=List[ContactResponse])
+def search_contacts(
+    first_name: Optional[str] = None,
+    last_name: Optional[str] = None,
+    email: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    query = db.query(Contact)
+    if first_name:
+        query = query.filter(Contact.first_name.ilike(f"%{first_name}%"))
+    if last_name:
+        query = query.filter(Contact.last_name.ilike(f"%{last_name}%"))
+    if email:
+        query = query.filter(Contact.email.ilike(f"%{email}%"))
+    return query.all()
+
+@app.get("/contacts/upcoming-birthdays/", response_model=List[ContactResponse])
+def get_upcoming_birthdays(db: Session = Depends(get_db)):
+    today = date.today()
+    next_week = today + timedelta(days=7)
+    return db.query(Contact).filter(Contact.birthday.between(today, next_week)).all()
